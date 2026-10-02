@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculator</title>
+<style>
+  :root { --bg:#14213d; --body:#1d2d50; --key:#2a3c66; --keyhi:#34497a; --op:#fca311; --ink:#f4f6fb; --mute:#9fb0d3; }
+  * { box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent; }
+  body { min-height:100vh; display:grid; place-items:center; background:var(--bg); font-family:"Trebuchet MS",system-ui,sans-serif; color:var(--ink); padding:16px; }
+  .calc { width:100%; max-width:340px; background:var(--body); border-radius:24px; padding:18px; box-shadow:0 20px 50px rgba(0,0,0,.4); }
+  .screen { background:var(--bg); border-radius:16px; padding:14px 16px; min-height:104px; display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end; margin-bottom:16px; overflow:hidden; }
+  #expr { color:var(--mute); font-size:1rem; min-height:1.3em; }
+  #result { font-size:2.6rem; font-weight:700; line-height:1.2; max-width:100%; overflow-x:auto; white-space:nowrap; }
+  .keys { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  button { font:inherit; font-size:1.4rem; padding:16px 0; border:0; border-radius:14px; background:var(--key); color:var(--ink); cursor:pointer; transition:background .15s, transform .1s; }
+  button:hover { background:var(--keyhi); }
+  button:active { transform:scale(.94); }
+  button:focus-visible { outline:3px solid var(--op); outline-offset:2px; }
+  .op { background:var(--op); color:var(--bg); font-weight:700; }
+  .op:hover { background:#ffb73d; }
+  .fn { color:var(--op); }
+  .zero { grid-column:span 2; }
+  .hint { text-align:center; color:var(--mute); font-size:.8rem; margin-top:14px; }
+  @media (prefers-reduced-motion:reduce) { button { transition:none; } }
+</style>
+</head>
+<body>
+<main class="calc">
+  <div class="screen" aria-live="polite">
+    <div id="expr"></div>
+    <div id="result">0</div>
+  </div>
+  <div class="keys">
+    <button class="fn" data-k="C">C</button>
+    <button class="fn" data-k="Backspace" aria-label="Delete">⌫</button>
+    <button class="fn" data-k="%">%</button>
+    <button class="op" data-k="/" aria-label="Divide">÷</button>
+
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button class="op" data-k="*" aria-label="Multiply">×</button>
+
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button class="op" data-k="-" aria-label="Subtract">−</button>
+
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button class="op" data-k="+" aria-label="Add">+</button>
+
+    <button class="zero" data-k="0">0</button>
+    <button data-k=".">.</button>
+    <button class="op" data-k="=">=</button>
+  </div>
+  <p class="hint">Keyboard works too: numbers, + − * /, Enter, Backspace, Esc</p>
+</main>
+
+<script>
+  const symbols = { "+":"+", "-":"−", "*":"×", "/":"÷" };
+  const exprEl = document.getElementById("expr");
+  const resultEl = document.getElementById("result");
+
+  let current = "0";   // number being typed
+  let previous = null; // number stored before an operator
+  let operator = null;
+  let justEvaluated = false;
+
+  function calculate(a, b, op) {
+    a = parseFloat(a); b = parseFloat(b);
+    if (op === "+") return a + b;
+    if (op === "-") return a - b;
+    if (op === "*") return a * b;
+    if (op === "/") return b === 0 ? "Error" : a / b;
+  }
+
+  function format(n) {
+    if (n === "Error") return n;
+    return String(parseFloat(Number(n).toPrecision(12)));
+  }
+
+  function render() {
+    resultEl.textContent = current;
+    exprEl.textContent = operator ? previous + " " + symbols[operator] : "";
+  }
+
+  function inputDigit(d) {
+    if (justEvaluated || current === "Error") { current = "0"; justEvaluated = false; }
+    current = current === "0" ? d : current + d;
+  }
+
+  function inputDot() {
+    if (justEvaluated || current === "Error") { current = "0"; justEvaluated = false; }
+    if (!current.includes(".")) current += ".";
+  }
+
+  function chooseOperator(op) {
+    if (current === "Error") return;
+    if (operator && !justEvaluated && previous !== null) {
+      // chain: 2 + 3 + ... computes 2 + 3 first
+      current = format(calculate(previous, current, operator));
+      if (current === "Error") { operator = null; previous = null; return; }
+    }
+    previous = current;
+    operator = op;
+    justEvaluated = false;
+    current = "0";
+  }
+
+  function equals() {
+    if (!operator || previous === null) return;
+    const result = format(calculate(previous, current, operator));
+    exprEl.textContent = previous + " " + symbols[operator] + " " + current + " =";
+    current = result;
+    previous = null;
+    operator = null;
+    justEvaluated = true;
+    resultEl.textContent = current;
+  }
+
+  function percent() {
+    if (current === "Error") return;
+    current = format(parseFloat(current) / 100);
+  }
+
+  function backspace() {
+    if (justEvaluated || current === "Error") return;
+    current = current.length > 1 ? current.slice(0, -1) : "0";
+  }
+
+  function clearAll() {
+    current = "0"; previous = null; operator = null; justEvaluated = false;
+  }
+
+  function press(k) {
+    if (k >= "0" && k <= "9" && k.length === 1) inputDigit(k);
+    else if (k === ".") inputDot();
+    else if ("+-*/".includes(k) && k.length === 1) chooseOperator(k);
+    else if (k === "=" || k === "Enter") { equals(); return; }
+    else if (k === "%") percent();
+    else if (k === "Backspace") backspace();
+    else if (k === "C" || k === "Escape") clearAll();
+    else return;
+    render();
+  }
+
+  document.querySelectorAll("button").forEach(b =>
+    b.addEventListener("click", () => press(b.dataset.k)));
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter") e.preventDefault();
+    press(e.key);
+  });
+
+  render();
+</script>
+</body>
+</html>
